@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+
+<body class="bg-gradient-to-br from-blue-100 to-indigo-300 min-h-screen">
     <div id="app"></div>
 
     <script>
@@ -48,6 +50,7 @@
 
                 state.fabricaciones = data.map(fab => ({
                     id: fab.id,
+                    anio: fab.anio,
                     numeroSemana: fab.numero_semana,
                     producto: fab.producto,
                     cantidad: fab.cantidad,
@@ -80,6 +83,7 @@
                 const { data, error } = await supabaseClient
                     .from('fabricaciones')
                     .insert([{
+                        anio: parseInt(datos.anio),
                         numero_semana: parseInt(datos.numeroSemana),
                         producto: datos.producto,
                         cantidad: parseInt(datos.cantidad),
@@ -115,6 +119,7 @@
                 }];
 
                 const updateData = {};
+                if (cambios.anio) updateData.anio = parseInt(cambios.anio);
                 if (cambios.numeroSemana) updateData.numero_semana = parseInt(cambios.numeroSemana);
                 if (cambios.producto) updateData.producto = cambios.producto;
                 if (cambios.cantidad) updateData.cantidad = parseInt(cambios.cantidad);
@@ -160,8 +165,8 @@
         function getFabricacionesFiltradas() {
             return state.fabricaciones
                 .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
-                .filter(fab => 
-                    state.busqueda === '' || 
+                .filter(fab =>
+                    state.busqueda === '' ||
                     fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
                     fab.numeroSemana.toString().includes(state.busqueda) ||
                     (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
@@ -181,7 +186,7 @@
         // Renderizar
         function render() {
             const app = document.getElementById('app');
-            
+
             if (state.cargando) {
                 app.innerHTML = `
                     <div class="flex items-center justify-center h-screen">
@@ -201,10 +206,13 @@
                 <!-- Header -->
                 <header class="bg-white shadow-md">
                     <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                        <div>
-                            <h1 class="text-2xl font-bold text-gray-800">Sistema de Fabricaciones</h1>
-                            <p class="text-sm text-gray-600">Gestión centralizada de solicitudes</p>
-                        </div>
+                    <div class="flex items-center gap-4">
+                        <img src="https://i.postimg.cc/66VxP8Pn/catalysis.png" alt="Logo Empresa" class="h-12 w-auto">
+                    <div>
+                <h1 class="text-2xl font-bold text-gray-800">Sistema de Fabricaciones</h1>
+                <p class="text-sm text-gray-600">Gestión centralizada de solicitudes</p>
+            </div>
+        </div>
                         <div class="flex items-center gap-3">
                             <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
@@ -337,9 +345,9 @@
                     ${fabricacionesFiltradas.length === 0 ? `
                         <div class="bg-white rounded-lg shadow-md p-8 text-center">
                             <p class="text-gray-500 mb-4">
-                                ${state.fabricaciones.length === 0 
-                                    ? '¡Empieza creando tu primera fabricación!' 
-                                    : 'No hay fabricaciones que coincidan con los filtros'}
+                                ${state.fabricaciones.length === 0
+                        ? '¡Empieza creando tu primera fabricación!'
+                        : 'No hay fabricaciones que coincidan con los filtros'}
                             </p>
                             ${state.fabricaciones.length === 0 ? `
                                 <button
@@ -415,7 +423,11 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-500">Año</p>
+                            <p class="text-lg font-semibold text-gray-800">${fab.anio || 'N/A'}</p>
+                        </div>
                         <div>
                             <p class="text-xs text-gray-500">Semana</p>
                             <p class="text-lg font-semibold text-gray-800">#${fab.numeroSemana}</p>
@@ -461,7 +473,7 @@
         }
 
         function renderModal() {
-            const fab = state.fabricacionSeleccionada 
+            const fab = state.fabricacionSeleccionada
                 ? state.fabricaciones.find(f => f.id === state.fabricacionSeleccionada)
                 : null;
 
@@ -474,6 +486,19 @@
                         
                         <div class="space-y-4">
                             <div>
+                                <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Año *
+                             </label>
+                            <input
+                                    type="number"
+                                    id="anio"
+                                    value="${fab ? fab.anio : new Date().getFullYear()}"
+                                    min="2020"
+                                    max="2040"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                    </div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Número de Semana *
                                 </label>
@@ -585,8 +610,8 @@
                         <h2 class="text-xl font-bold text-gray-800 mb-4">Fabricaciones por Semana</h2>
                         <div class="space-y-2">
                             ${Object.entries(porSemana)
-                                .sort(([a], [b]) => Number(a) - Number(b))
-                                .map(([semana, cantidad]) => `
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([semana, cantidad]) => `
                                     <div class="flex items-center gap-4">
                                         <span class="w-20 text-sm font-medium text-gray-700">Semana ${semana}</span>
                                         <div class="flex-1 bg-gray-200 rounded-full h-6">
@@ -606,10 +631,10 @@
                         <h2 class="text-xl font-bold text-gray-800 mb-4">Fabricaciones por Producto</h2>
                         <div class="space-y-2">
                             ${Object.entries(porProducto)
-                                .sort(([, a], [, b]) => b - a)
-                                .map(([producto, cantidad]) => `
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([producto, cantidad]) => `
                                     <div class="flex items-center gap-4">
-                                        <span class="w-32 text-sm font-medium text-gray-700 truncate" title="${producto}">${producto}</span>
+                                        <span class="w-64 text-sm font-medium text-gray-700 truncate" title="${producto}">${producto}</span>
                                         <div class="flex-1 bg-gray-200 rounded-full h-6">
                                             <div
                                                 class="bg-green-500 h-6 rounded-full flex items-center justify-end pr-2"
@@ -646,14 +671,14 @@
 
                     <div class="space-y-4">
                         ${fab.historial.map(entrada => {
-                            const fecha = new Date(entrada.fecha).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            });
-                            return `
+                const fecha = new Date(entrada.fecha).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                return `
                                 <div class="border-l-4 border-blue-500 pl-4 py-2">
                                     <div class="flex justify-between items-start mb-1">
                                         <p class="font-semibold text-gray-800">${entrada.accion}</p>
@@ -663,14 +688,14 @@
                                     <p class="text-sm text-gray-700 mt-1">${entrada.detalle}</p>
                                 </div>
                             `;
-                        }).join('')}
+            }).join('')}
                     </div>
                 </div>
             `;
         }
 
         // Funciones globales
-        window.cambiarVista = function(vista) {
+        window.cambiarVista = function (vista) {
             state.vistaActual = vista;
             if (vista === 'lista') {
                 state.fabricacionSeleccionada = null;
@@ -678,19 +703,20 @@
             render();
         };
 
-        window.abrirModal = function(id) {
+        window.abrirModal = function (id) {
             state.fabricacionSeleccionada = id;
             state.modoEdicion = true;
             render();
         };
 
-        window.cerrarModal = function() {
+        window.cerrarModal = function () {
             state.modoEdicion = false;
             state.fabricacionSeleccionada = null;
             render();
         };
 
-        window.guardarFabricacion = async function() {
+        window.guardarFabricacion = async function () {
+            const anio = document.getElementById('anio').value;
             const numeroSemana = document.getElementById('numeroSemana').value;
             const producto = document.getElementById('producto').value;
             const cantidad = document.getElementById('cantidad').value;
@@ -702,6 +728,7 @@
             }
 
             const datos = {
+                anio,
                 numeroSemana,
                 producto,
                 cantidad,
@@ -717,11 +744,11 @@
             cerrarModal();
         };
 
-        window.cambiarEstado = async function(id, nuevoEstado) {
+        window.cambiarEstado = async function (id, nuevoEstado) {
             await actualizarFabricacion(id, { estado: nuevoEstado });
         };
 
-        window.verHistorial = function(id) {
+        window.verHistorial = function (id) {
             state.fabricacionSeleccionada = id;
             state.vistaActual = 'historial';
             render();
@@ -731,4 +758,5 @@
         cargarFabricaciones();
     </script>
 </body>
+
 </html>
