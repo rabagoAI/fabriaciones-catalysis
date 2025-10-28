@@ -46,9 +46,10 @@
         async function cargarFabricaciones() {
             try {
                 const { data, error } = await supabaseClient
-                    .from('fabricaciones')
-                    .select('*')
-                    .order('fecha_creacion', { ascending: false });
+    .from('fabricaciones')
+    .select('*')
+    .order('anio', { ascending: true })
+    .order('numero_semana', { ascending: true });
 
                 if (error) throw error;
 
