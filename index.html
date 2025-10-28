@@ -19,7 +19,7 @@
 
         // Configuración de emails para notificaciones
         // ⚠️ IMPORTANTE: Cambia este email por el tuyo para hacer pruebas
-        const emailsNotificacion = ['pacoalfair@hotmail.com']; // ← PON TU EMAIL AQUÍ
+        const emailsNotificacion = ['tu-email@ejemplo.com']; // ← PON TU EMAIL AQUÍ
 
         // Estados
         const ESTADOS = {
@@ -37,7 +37,9 @@
             fabricacionSeleccionada: null,
             modoEdicion: false,
             usuarioActual: localStorage.getItem('usuarioActual') || 'Usuario',
-            cargando: true
+            cargando: true,
+            anioCalendario: new Date().getFullYear(),
+            semanaSeleccionada: null
         };
 
         // Cargar fabricaciones
@@ -209,23 +211,15 @@
 
         // Filtrar fabricaciones
         function getFabricacionesFiltradas() {
-    return state.fabricaciones
-        .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
-        .filter(fab => 
-            state.busqueda === '' || 
-            fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
-            fab.numeroSemana.toString().includes(state.busqueda) ||
-            (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
-        )
-        .sort((a, b) => {
-            // Primero por año
-            if (a.anio !== b.anio) {
-                return a.anio - b.anio;
-            }
-            // Luego por semana
-            return a.numeroSemana - b.numeroSemana;
-        });
-}
+            return state.fabricaciones
+                .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
+                .filter(fab => 
+                    state.busqueda === '' || 
+                    fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
+                    fab.numeroSemana.toString().includes(state.busqueda) ||
+                    (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
+                );
+        }
 
         // Calcular estadísticas
         function getEstadisticas() {
@@ -261,7 +255,7 @@
                 <header class="bg-white shadow-md">
                     <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                         <div class="flex items-center gap-4">
-                            <img src="https://i.postimg.cc/66VxP8Pn/catalysis.png" alt="Logo Catalysis" class="h-12 w-auto">
+                            <img src="https://raw.githubusercontent.com/rabagaAI/fabricaciones-catalysis/main/logo.png" alt="Logo Catalysis" class="h-12 w-auto">
                             <div>
                                 <h1 class="text-2xl font-bold text-gray-800">Sistema de Fabricaciones</h1>
                                 <p class="text-sm text-gray-600">Gestión centralizada de solicitudes</p>
@@ -292,6 +286,15 @@
                             Lista de Fabricaciones
                         </button>
                         <button
+                            onclick="cambiarVista('calendario')"
+                            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${state.vistaActual === 'calendario' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            Calendario
+                        </button>
+                        <button
                             onclick="cambiarVista('estadisticas')"
                             class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${state.vistaActual === 'estadisticas' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
                         >
@@ -303,6 +306,7 @@
                     </div>
 
                     ${state.vistaActual === 'lista' ? renderLista(fabricacionesFiltradas, estadisticas) : ''}
+                    ${state.vistaActual === 'calendario' ? renderCalendario() : ''}
                     ${state.vistaActual === 'estadisticas' ? renderEstadisticas() : ''}
                     ${state.vistaActual === 'historial' ? renderHistorial() : ''}
                 </div>
@@ -667,6 +671,197 @@
             `;
         }
 
+        function renderCalendario() {
+            // Obtener años disponibles
+            const aniosDisponibles = [...new Set(state.fabricaciones.map(f => f.anio))].sort();
+            if (aniosDisponibles.length === 0) {
+                aniosDisponibles.push(new Date().getFullYear());
+            }
+
+            // Agrupar fabricaciones por semana y año
+            const fabricacionesPorSemana = {};
+            state.fabricaciones
+                .filter(f => f.anio === state.anioCalendario)
+                .forEach(fab => {
+                    const key = fab.numeroSemana;
+                    if (!fabricacionesPorSemana[key]) {
+                        fabricacionesPorSemana[key] = {
+                            total: 0,
+                            pendientes: 0,
+                            enProceso: 0,
+                            completadas: 0,
+                            fabricaciones: []
+                        };
+                    }
+                    fabricacionesPorSemana[key].total++;
+                    fabricacionesPorSemana[key].fabricaciones.push(fab);
+                    if (fab.estado === ESTADOS.PENDIENTE) fabricacionesPorSemana[key].pendientes++;
+                    if (fab.estado === ESTADOS.EN_PROCESO) fabricacionesPorSemana[key].enProceso++;
+                    if (fab.estado === ESTADOS.COMPLETADA) fabricacionesPorSemana[key].completadas++;
+                });
+
+            // Generar semanas del año
+            const semanas = [];
+            for (let i = 1; i <= 52; i++) {
+                semanas.push(i);
+            }
+
+            return `
+                <div class="space-y-6">
+                    <!-- Selector de año -->
+                    <div class="bg-white rounded-lg shadow-md p-4 flex items-center justify-between">
+                        <h2 class="text-2xl font-bold text-gray-800">Calendario de Fabricaciones</h2>
+                        <div class="flex items-center gap-4">
+                            <button
+                                onclick="cambiarAnioCalendario(-1)"
+                                class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <span class="text-2xl font-bold text-blue-600">${state.anioCalendario}</span>
+                            <button
+                                onclick="cambiarAnioCalendario(1)"
+                                class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Leyenda -->
+                    <div class="bg-white rounded-lg shadow-md p-4">
+                        <div class="flex flex-wrap gap-4 items-center">
+                            <span class="text-sm font-medium text-gray-700">Leyenda:</span>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
+                                <span class="text-sm text-gray-600">Pendiente</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 bg-blue-100 border-2 border-blue-400 rounded"></div>
+                                <span class="text-sm text-gray-600">En Proceso</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 bg-green-100 border-2 border-green-400 rounded"></div>
+                                <span class="text-sm text-gray-600">Completada</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded"></div>
+                                <span class="text-sm text-gray-600">Sin fabricaciones</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calendario de semanas -->
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <div class="grid grid-cols-4 md:grid-cols-8 lg:grid-cols-13 gap-3">
+                            ${semanas.map(semana => {
+                                const data = fabricacionesPorSemana[semana];
+                                const tieneData = data && data.total > 0;
+                                
+                                let bgColor = 'bg-gray-100 border-gray-300';
+                                let textColor = 'text-gray-400';
+                                let borderColor = 'border-gray-300';
+                                
+                                if (tieneData) {
+                                    // Color según el estado predominante
+                                    if (data.pendientes >= data.enProceso && data.pendientes >= data.completadas) {
+                                        bgColor = 'bg-yellow-100';
+                                        borderColor = 'border-yellow-400';
+                                        textColor = 'text-yellow-800';
+                                    } else if (data.enProceso >= data.completadas) {
+                                        bgColor = 'bg-blue-100';
+                                        borderColor = 'border-blue-400';
+                                        textColor = 'text-blue-800';
+                                    } else {
+                                        bgColor = 'bg-green-100';
+                                        borderColor = 'border-green-400';
+                                        textColor = 'text-green-800';
+                                    }
+                                }
+
+                                return `
+                                    <button
+                                        onclick="${tieneData ? `verSemana(${semana})` : ''}"
+                                        class="aspect-square ${bgColor} border-2 ${borderColor} rounded-lg p-2 transition hover:shadow-md ${tieneData ? 'cursor-pointer hover:scale-105' : 'cursor-default'}"
+                                        title="${tieneData ? `Semana ${semana}: ${data.total} fabricación(es)` : `Semana ${semana}: Sin fabricaciones`}"
+                                    >
+                                        <div class="flex flex-col items-center justify-center h-full">
+                                            <span class="text-xs font-medium ${textColor}">S${semana}</span>
+                                            ${tieneData ? `<span class="text-lg font-bold ${textColor}">${data.total}</span>` : ''}
+                                        </div>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Detalle de semana seleccionada -->
+                    ${state.semanaSeleccionada ? `
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold text-gray-800">
+                                    Semana ${state.semanaSeleccionada} - ${state.anioCalendario}
+                                </h3>
+                                <button
+                                    onclick="cerrarSemana()"
+                                    class="text-gray-500 hover:text-gray-700"
+                                >
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            ${fabricacionesPorSemana[state.semanaSeleccionada] ? `
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="bg-yellow-50 rounded-lg p-3 text-center">
+                                        <p class="text-2xl font-bold text-yellow-800">${fabricacionesPorSemana[state.semanaSeleccionada].pendientes}</p>
+                                        <p class="text-xs text-yellow-600">Pendientes</p>
+                                    </div>
+                                    <div class="bg-blue-50 rounded-lg p-3 text-center">
+                                        <p class="text-2xl font-bold text-blue-800">${fabricacionesPorSemana[state.semanaSeleccionada].enProceso}</p>
+                                        <p class="text-xs text-blue-600">En Proceso</p>
+                                    </div>
+                                    <div class="bg-green-50 rounded-lg p-3 text-center">
+                                        <p class="text-2xl font-bold text-green-800">${fabricacionesPorSemana[state.semanaSeleccionada].completadas}</p>
+                                        <p class="text-xs text-green-600">Completadas</p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    ${fabricacionesPorSemana[state.semanaSeleccionada].fabricaciones.map(fab => {
+                                        const colorEstado = {
+                                            [ESTADOS.PENDIENTE]: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+                                            [ESTADOS.EN_PROCESO]: 'bg-blue-100 text-blue-800 border-blue-300',
+                                            [ESTADOS.COMPLETADA]: 'bg-green-100 text-green-800 border-green-300'
+                                        };
+                                        return `
+                                            <div class="border-l-4 ${colorEstado[fab.estado]} pl-4 py-2">
+                                                <div class="flex justify-between items-start">
+                                                    <div>
+                                                        <p class="font-semibold text-gray-800">${fab.producto}</p>
+                                                        <p class="text-sm text-gray-600">Cantidad: ${fab.cantidad} | Por: ${fab.solicitante}</p>
+                                                        ${fab.observaciones ? `<p class="text-xs text-gray-500 mt-1">${fab.observaciones}</p>` : ''}
+                                                    </div>
+                                                    <span class="px-2 py-1 rounded text-xs font-medium ${colorEstado[fab.estado].split(' ')[0]} ${colorEstado[fab.estado].split(' ')[1]}">
+                                                        ${fab.estado}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
         function renderEstadisticas() {
             const porSemana = {};
             const porProducto = {};
@@ -806,6 +1001,21 @@
         window.verHistorial = function(id) {
             state.fabricacionSeleccionada = id;
             state.vistaActual = 'historial';
+            render();
+        };
+
+        window.cambiarAnioCalendario = function(cambio) {
+            state.anioCalendario += cambio;
+            render();
+        };
+
+        window.verSemana = function(semana) {
+            state.semanaSeleccionada = semana;
+            render();
+        };
+
+        window.cerrarSemana = function() {
+            state.semanaSeleccionada = null;
             render();
         };
 
