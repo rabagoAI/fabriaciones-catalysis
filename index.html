@@ -46,10 +46,10 @@
         async function cargarFabricaciones() {
             try {
                 const { data, error } = await supabaseClient
-    .from('fabricaciones')
-    .select('*')
-    .order('anio', { ascending: true })
-    .order('numero_semana', { ascending: true });
+                    .from('fabricaciones')
+                    .select('*')
+                    .order('anio', { ascending: true })
+                    .order('numero_semana', { ascending: true });
 
                 if (error) throw error;
 
@@ -59,6 +59,8 @@
                     anio: fab.anio,
                     producto: fab.producto,
                     cantidad: fab.cantidad,
+                    diasFabricacion: fab.dias_fabricacion,
+                    fechaEntrega: fab.fecha_entrega,
                     observaciones: fab.observaciones,
                     estado: fab.estado,
                     solicitante: fab.solicitante,
@@ -113,6 +115,8 @@
                         anio: parseInt(datos.anio),
                         producto: datos.producto,
                         cantidad: parseInt(datos.cantidad),
+                        dias_fabricacion: datos.diasFabricacion ? parseInt(datos.diasFabricacion) : null,
+                        fecha_entrega: datos.fechaEntrega || null,
                         observaciones: datos.observaciones || null,
                         estado: ESTADOS.PENDIENTE,
                         solicitante: state.usuarioActual,
@@ -159,6 +163,8 @@
                 if (cambios.anio) updateData.anio = parseInt(cambios.anio);
                 if (cambios.producto) updateData.producto = cambios.producto;
                 if (cambios.cantidad) updateData.cantidad = parseInt(cambios.cantidad);
+                if (cambios.diasFabricacion !== undefined) updateData.dias_fabricacion = cambios.diasFabricacion ? parseInt(cambios.diasFabricacion) : null;
+                if (cambios.fechaEntrega !== undefined) updateData.fecha_entrega = cambios.fechaEntrega || null;
                 if (cambios.observaciones !== undefined) updateData.observaciones = cambios.observaciones;
                 if (cambios.estado) updateData.estado = cambios.estado;
                 updateData.historial = nuevoHistorial;
@@ -256,10 +262,10 @@
                 <header class="bg-white shadow-md">
                     <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                         <div class="flex items-center gap-4">
-                            <img src="https://raw.githubusercontent.com/rabagaAI/fabricaciones-catalysis/main/logo.png" alt="Logo Catalysis" class="h-12 w-auto">
+                            <img src="https://res.cloudinary.com/ds7shn66t/image/upload/v1761819015/CATALYSISlogo_agz8kr.png" alt="Logo Catalysis" class="h-12 w-auto">
                             <div>
                                 <h1 class="text-2xl font-bold text-gray-800">Sistema de Fabricaciones</h1>
-                                <p class="text-sm text-gray-600">Gestión centralizada de solicitudes</p>
+                                <p class="text-sm text-gray-600">Fabricaciones solicitadas</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -482,20 +488,24 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <p class="text-xs text-gray-500">Semana</p>
-                            <p class="text-lg font-semibold text-gray-800">#${fab.numeroSemana}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500">Año</p>
-                            <p class="text-lg font-semibold text-gray-800">${fab.anio || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500">Cantidad</p>
-                            <p class="text-lg font-semibold text-gray-800">${fab.cantidad}</p>
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-4 gap-4 mb-4">
+    <div>
+        <p class="text-xs text-gray-500">Semana</p>
+        <p class="text-lg font-semibold text-gray-800">#${fab.numeroSemana}</p>
+    </div>
+    <div>
+        <p class="text-xs text-gray-500">Año</p>
+        <p class="text-lg font-semibold text-gray-800">${fab.anio || 'N/A'}</p>
+    </div>
+    <div>
+        <p class="text-xs text-gray-500">Cantidad</p>
+        <p class="text-lg font-semibold text-gray-800">${fab.cantidad}</p>
+    </div>
+    <div>
+        <p class="text-xs text-gray-500">Fecha Fabricación</p>
+        <p class="text-sm font-semibold text-gray-800">${fab.fechaEntrega ? new Date(fab.fechaEntrega + 'T00:00:00').toLocaleDateString('es-ES', {day: '2-digit', month: 'long'}) : '-'}</p>
+    </div>
+</div>
 
                     ${fab.observaciones ? `
                         <div class="mb-4">
@@ -593,6 +603,19 @@
                                     id="cantidad"
                                     value="${fab ? fab.cantidad : ''}"
                                     min="1"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Fecha de Fabricación
+                                </label>
+                                <input
+                                    type="date"
+                                    id="fechaEntrega"
+                                    value="${fab ? (fab.fechaEntrega || '') : ''}"
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
                             </div>
@@ -971,6 +994,8 @@
             const anio = document.getElementById('anio').value;
             const producto = document.getElementById('producto').value;
             const cantidad = document.getElementById('cantidad').value;
+            const diasFabricacion = document.getElementById('diasFabricacion').value;
+            const fechaEntrega = document.getElementById('fechaEntrega').value;
             const observaciones = document.getElementById('observaciones').value;
 
             if (!numeroSemana || !anio || !producto || !cantidad) {
@@ -983,6 +1008,8 @@
                 anio,
                 producto,
                 cantidad,
+                diasFabricacion,
+                fechaEntrega,
                 observaciones
             };
 
