@@ -990,38 +990,35 @@
         };
 
         window.guardarFabricacion = async function() {
-            const numeroSemana = document.getElementById('numeroSemana').value;
-            const anio = document.getElementById('anio').value;
-            const producto = document.getElementById('producto').value;
-            const cantidad = document.getElementById('cantidad').value;
-            const diasFabricacion = document.getElementById('diasFabricacion').value;
-            const fechaEntrega = document.getElementById('fechaEntrega').value;
-            const observaciones = document.getElementById('observaciones').value;
+    const numeroSemana = document.getElementById('numeroSemana').value;
+    const anio = document.getElementById('anio').value;
+    const producto = document.getElementById('producto').value;
+    const cantidad = document.getElementById('cantidad').value;
+    const fechaEntrega = document.getElementById('fechaEntrega').value;
+    const observaciones = document.getElementById('observaciones').value;
 
-            if (!numeroSemana || !anio || !producto || !cantidad) {
-                alert('Por favor completa todos los campos obligatorios');
-                return;
-            }
+    if (!numeroSemana || !anio || !producto || !cantidad) {
+        alert('Por favor completa todos los campos obligatorios');
+        return;
+    }
 
-            const datos = {
-                numeroSemana,
-                anio,
-                producto,
-                cantidad,
-                diasFabricacion,
-                fechaEntrega,
-                observaciones
-            };
+    const datos = {
+        numeroSemana,
+        anio,
+        producto,
+        cantidad,
+        fechaEntrega,
+        observaciones
+    };
 
-            if (state.fabricacionSeleccionada) {
-                await actualizarFabricacion(state.fabricacionSeleccionada, datos);
-            } else {
-                await crearFabricacion(datos);
-            }
+    if (state.fabricacionSeleccionada) {
+        await actualizarFabricacion(state.fabricacionSeleccionada, datos);
+    } else {
+        await crearFabricacion(datos);
+    }
 
-            cerrarModal();
-        };
-
+    cerrarModal();
+};
         window.cambiarEstado = async function(id, nuevoEstado) {
             await actualizarFabricacion(id, { estado: nuevoEstado });
         };
