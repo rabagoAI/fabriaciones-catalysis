@@ -218,15 +218,30 @@
 
         // Filtrar fabricaciones
         function getFabricacionesFiltradas() {
-            return state.fabricaciones
-                .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
-                .filter(fab => 
-                    state.busqueda === '' || 
-                    fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
-                    fab.numeroSemana.toString().includes(state.busqueda) ||
-                    (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
-                );
-        }
+    return state.fabricaciones
+        .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
+        .filter(fab => 
+            state.busqueda === '' || 
+            fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
+            fab.numeroSemana.toString().includes(state.busqueda) ||
+            (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
+        )
+        .sort((a, b) => {
+            // Si ambas tienen fecha, ordenar por fecha
+            if (a.fechaEntrega && b.fechaEntrega) {
+                return new Date(a.fechaEntrega) - new Date(b.fechaEntrega);
+            }
+            // Si solo una tiene fecha, esa va primero
+            if (a.fechaEntrega && !b.fechaEntrega) return -1;
+            if (!a.fechaEntrega && b.fechaEntrega) return 1;
+            
+            // Si ninguna tiene fecha, ordenar por año y semana
+            if (a.anio !== b.anio) {
+                return a.anio - b.anio;
+            }
+            return a.numeroSemana - b.numeroSemana;
+        });
+}
 
         // Calcular estadísticas
         function getEstadisticas() {
