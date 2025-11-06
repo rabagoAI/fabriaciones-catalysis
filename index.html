@@ -6,6 +6,7 @@
     <title>Sistema de Fabricaciones</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-100 to-indigo-200 min-h-screen">
     <div id="app"></div>
@@ -28,10 +29,19 @@
             COMPLETADA: 'Completada'
         };
 
+        const PRIORIDADES = {
+            ALTA: 'Alta',
+            MEDIA: 'Media',
+            BAJA: 'Baja'
+        };
+
         // Estado de la aplicación
         let state = {
             fabricaciones: [],
             filtroEstado: 'todos',
+            filtroPrioridad: 'todas',
+            fechaDesde: '',
+            fechaHasta: '',
             busqueda: '',
             vistaActual: 'lista',
             fabricacionSeleccionada: null,
@@ -39,7 +49,8 @@
             usuarioActual: localStorage.getItem('usuarioActual') || 'Usuario',
             cargando: true,
             anioCalendario: new Date().getFullYear(),
-            semanaSeleccionada: null
+            semanaSeleccionada: null,
+            draggedId: null
         };
 
         // Cargar fabricaciones
@@ -61,6 +72,7 @@
                     cantidad: fab.cantidad,
                     diasFabricacion: fab.dias_fabricacion,
                     fechaEntrega: fab.fecha_entrega,
+                    prioridad: fab.prioridad || PRIORIDADES.MEDIA,
                     observaciones: fab.observaciones,
                     estado: fab.estado,
                     solicitante: fab.solicitante,
@@ -117,6 +129,7 @@
                         cantidad: parseInt(datos.cantidad),
                         dias_fabricacion: datos.diasFabricacion ? parseInt(datos.diasFabricacion) : null,
                         fecha_entrega: datos.fechaEntrega || null,
+                        prioridad: datos.prioridad || PRIORIDADES.MEDIA,
                         observaciones: datos.observaciones || null,
                         estado: ESTADOS.PENDIENTE,
                         solicitante: state.usuarioActual,
@@ -165,6 +178,7 @@
                 if (cambios.cantidad) updateData.cantidad = parseInt(cambios.cantidad);
                 if (cambios.diasFabricacion !== undefined) updateData.dias_fabricacion = cambios.diasFabricacion ? parseInt(cambios.diasFabricacion) : null;
                 if (cambios.fechaEntrega !== undefined) updateData.fecha_entrega = cambios.fechaEntrega || null;
+                if (cambios.prioridad) updateData.prioridad = cambios.prioridad;
                 if (cambios.observaciones !== undefined) updateData.observaciones = cambios.observaciones;
                 if (cambios.estado) updateData.estado = cambios.estado;
                 updateData.historial = nuevoHistorial;
@@ -218,29 +232,24 @@
 
         // Filtrar fabricaciones
         function getFabricacionesFiltradas() {
-    return state.fabricaciones
-        .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
-        .filter(fab => 
-            state.busqueda === '' || 
-            fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
-            fab.numeroSemana.toString().includes(state.busqueda) ||
-            (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
-        )
-        .sort((a, b) => {
-            // Si ambas tienen fecha, ordenar por fecha
-            if (a.fechaEntrega && b.fechaEntrega) {
-                return new Date(a.fechaEntrega) - new Date(b.fechaEntrega);
-            }
-            // Si solo una tiene fecha, esa va primero
-            if (a.fechaEntrega && !b.fechaEntrega) return -1;
-            if (!a.fechaEntrega && b.fechaEntrega) return 1;
-            
-            // Si ninguna tiene fecha, ordenar por año y semana
-            if (a.anio !== b.anio) {
-                return a.anio - b.anio;
-            }
-            return a.numeroSemana - b.numeroSemana;
-        });
+            return state.fabricaciones
+                .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
+                .filter(fab => 
+                    state.busqueda === '' || 
+                    fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
+                    fab.numeroSemana.toString().includes(state.busqueda) ||
+                    (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
+                );
+        }
+
+        // Calcular días restantes
+function getDiasRestantes(fechaEntrega) {
+    if (!fechaEntrega) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fecha = new Date(fechaEntrega);
+    fecha.setHours(0, 0, 0, 0);
+    return Math.ceil((fecha - hoy) / (1000 * 60 * 60 * 24));
 }
 
         // Calcular estadísticas
@@ -280,7 +289,7 @@
                             <img src="https://res.cloudinary.com/ds7shn66t/image/upload/v1761819015/CATALYSISlogo_agz8kr.png" alt="Logo Catalysis" class="h-12 w-auto">
                             <div>
                                 <h1 class="text-2xl font-bold text-gray-800">Sistema de Fabricaciones</h1>
-                                <p class="text-sm text-gray-600">Fabricaciones solicitadas</p>
+                                <p class="text-sm text-gray-600">Gestión centralizada de solicitudes</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -300,12 +309,21 @@
 
                 <div class="max-w-7xl mx-auto px-4 py-6">
                     <!-- Navegación -->
-                    <div class="flex gap-2 mb-6">
+                    <div class="flex gap-2 mb-6 flex-wrap">
                         <button
                             onclick="cambiarVista('lista')"
                             class="px-4 py-2 rounded-lg font-medium transition ${state.vistaActual === 'lista' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
                         >
                             Lista de Fabricaciones
+                        </button>
+                        <button
+                            onclick="cambiarVista('kanban')"
+                            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${state.vistaActual === 'kanban' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 0v10m0-10a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V9a2 2 0 012-2h2z"></path>
+                            </svg>
+                            Kanban
                         </button>
                         <button
                             onclick="cambiarVista('calendario')"
@@ -328,6 +346,7 @@
                     </div>
 
                     ${state.vistaActual === 'lista' ? renderLista(fabricacionesFiltradas, estadisticas) : ''}
+                    ${state.vistaActual === 'kanban' ? renderKanban() : ''}
                     ${state.vistaActual === 'calendario' ? renderCalendario() : ''}
                     ${state.vistaActual === 'estadisticas' ? renderEstadisticas() : ''}
                     ${state.vistaActual === 'historial' ? renderHistorial() : ''}
@@ -360,13 +379,37 @@
                     render();
                 });
             }
+
+            const filtroPrioridadSelect = document.getElementById('filtroPrioridad');
+            if (filtroPrioridadSelect) {
+                filtroPrioridadSelect.addEventListener('change', (e) => {
+                    state.filtroPrioridad = e.target.value;
+                    render();
+                });
+            }
+
+            const fechaDesdeInput = document.getElementById('fechaDesde');
+            if (fechaDesdeInput) {
+                fechaDesdeInput.addEventListener('change', (e) => {
+                    state.fechaDesde = e.target.value;
+                    render();
+                });
+            }
+
+            const fechaHastaInput = document.getElementById('fechaHasta');
+            if (fechaHastaInput) {
+                fechaHastaInput.addEventListener('change', (e) => {
+                    state.fechaHasta = e.target.value;
+                    render();
+                });
+            }
         }
 
         function renderLista(fabricacionesFiltradas, estadisticas) {
             return `
                 <!-- Controles -->
                 <div class="bg-white rounded-lg shadow-md p-4 mb-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div class="relative">
                             <svg class="absolute left-3 top-3 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -374,28 +417,62 @@
                             <input
                                 type="text"
                                 id="busquedaInput"
-                                placeholder="Buscar por producto, semana u observaciones..."
+                                placeholder="Buscar producto..."
                                 value="${state.busqueda}"
-                                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             />
                         </div>
                         <select
                             id="filtroEstado"
-                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         >
                             <option value="todos" ${state.filtroEstado === 'todos' ? 'selected' : ''}>Todos los estados</option>
                             <option value="${ESTADOS.PENDIENTE}" ${state.filtroEstado === ESTADOS.PENDIENTE ? 'selected' : ''}>${ESTADOS.PENDIENTE}</option>
                             <option value="${ESTADOS.EN_PROCESO}" ${state.filtroEstado === ESTADOS.EN_PROCESO ? 'selected' : ''}>${ESTADOS.EN_PROCESO}</option>
                             <option value="${ESTADOS.COMPLETADA}" ${state.filtroEstado === ESTADOS.COMPLETADA ? 'selected' : ''}>${ESTADOS.COMPLETADA}</option>
                         </select>
+                        <select
+                            id="filtroPrioridad"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        >
+                            <option value="todas" ${state.filtroPrioridad === 'todas' ? 'selected' : ''}>Todas las prioridades</option>
+                            <option value="${PRIORIDADES.ALTA}" ${state.filtroPrioridad === PRIORIDADES.ALTA ? 'selected' : ''}>🔴 ${PRIORIDADES.ALTA}</option>
+                            <option value="${PRIORIDADES.MEDIA}" ${state.filtroPrioridad === PRIORIDADES.MEDIA ? 'selected' : ''}>🟡 ${PRIORIDADES.MEDIA}</option>
+                            <option value="${PRIORIDADES.BAJA}" ${state.filtroPrioridad === PRIORIDADES.BAJA ? 'selected' : ''}>🟢 ${PRIORIDADES.BAJA}</option>
+                        </select>
+                        <input
+                            type="date"
+                            id="fechaDesde"
+                            value="${state.fechaDesde}"
+                            placeholder="Desde"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                        <input
+                            type="date"
+                            id="fechaHasta"
+                            value="${state.fechaHasta}"
+                            placeholder="Hasta"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                    </div>
+                    <div class="flex gap-2 mt-4">
                         <button
                             onclick="abrirModal(null)"
-                            class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
+                            class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
                         >
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                             </svg>
                             Nueva Fabricación
+                        </button>
+                        <button
+                            onclick="window.exportarAExcel()"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-medium"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Exportar
                         </button>
                     </div>
                 </div>
@@ -443,12 +520,45 @@
             `;
         }
 
+        
+
         function renderTarjeta(fab) {
             const colorEstado = {
                 [ESTADOS.PENDIENTE]: 'bg-yellow-100 text-yellow-800',
                 [ESTADOS.EN_PROCESO]: 'bg-blue-100 text-blue-800',
                 [ESTADOS.COMPLETADA]: 'bg-green-100 text-green-800'
             };
+
+            const colorPrioridad = {
+                [PRIORIDADES.ALTA]: 'bg-red-100 text-red-800 border-red-300',
+                [PRIORIDADES.MEDIA]: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+                [PRIORIDADES.BAJA]: 'bg-green-100 text-green-800 border-green-300'
+            };
+
+            const iconoPrioridad = {
+                [PRIORIDADES.ALTA]: '🔴',
+                [PRIORIDADES.MEDIA]: '🟡',
+                [PRIORIDADES.BAJA]: '🟢'
+            };
+
+            const diasRestantes = getDiasRestantes(fab.fechaEntrega);
+            let alertaFecha = '';
+            let textoAlerta = '';
+            
+            if (diasRestantes !== null) {
+                if (diasRestantes < 0) {
+                    alertaFecha = 'border-l-4 border-red-500';
+                    textoAlerta = `<span class="text-xs font-semibold text-red-600">⚠️ Retrasado ${Math.abs(diasRestantes)} días</span>`;
+                } else if (diasRestantes === 0) {
+                    alertaFecha = 'border-l-4 border-orange-500';
+                    textoAlerta = `<span class="text-xs font-semibold text-orange-600">⚠️ HOY</span>`;
+                } else if (diasRestantes <= 3) {
+                    alertaFecha = 'border-l-4 border-orange-500';
+                    textoAlerta = `<span class="text-xs font-semibold text-orange-600">⚠️ ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} restante${diasRestantes > 1 ? 's' : ''}</span>`;
+                } else {
+                    textoAlerta = `<span class="text-xs text-gray-500">${diasRestantes} días restantes</span>`;
+                }
+            }
 
             const fecha = new Date(fab.fechaCreacion).toLocaleDateString('es-ES', {
                 day: '2-digit',
@@ -459,20 +569,33 @@
             });
 
             return `
-                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition p-6">
+                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition p-6 ${alertaFecha}">
                     <div class="flex justify-between items-start mb-4">
                         <div class="flex-1">
-                            <div class="flex items-center gap-3 mb-2">
+                            <div class="flex items-center gap-3 mb-2 flex-wrap">
                                 <h3 class="text-xl font-bold text-gray-800">${fab.producto}</h3>
                                 <span class="px-3 py-1 rounded-full text-sm font-medium ${colorEstado[fab.estado]}">
                                     ${fab.estado}
                                 </span>
+                                <span class="px-2 py-1 rounded text-xs font-medium border ${colorPrioridad[fab.prioridad]}">
+                                    ${iconoPrioridad[fab.prioridad]} ${fab.prioridad}
+                                </span>
                             </div>
                             <p class="text-sm text-gray-600">Solicitado por: ${fab.solicitante}</p>
                             <p class="text-xs text-gray-500">${fecha}</p>
+                            ${textoAlerta ? `<div class="mt-2">${textoAlerta}</div>` : ''}
                         </div>
                         
                         <div class="flex gap-2">
+                            <button
+                                onclick="window.duplicarFabricacion(${fab.id})"
+                                class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                                title="Duplicar"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                            </button>
                             <button
                                 onclick="abrirModal(${fab.id})"
                                 class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -504,23 +627,23 @@
                     </div>
 
                     <div class="grid grid-cols-4 gap-4 mb-4">
-    <div>
-        <p class="text-xs text-gray-500">Semana</p>
-        <p class="text-lg font-semibold text-gray-800">#${fab.numeroSemana}</p>
-    </div>
-    <div>
-        <p class="text-xs text-gray-500">Año</p>
-        <p class="text-lg font-semibold text-gray-800">${fab.anio || 'N/A'}</p>
-    </div>
-    <div>
-        <p class="text-xs text-gray-500">Cantidad</p>
-        <p class="text-lg font-semibold text-gray-800">${fab.cantidad}</p>
-    </div>
-    <div>
-        <p class="text-xs text-gray-500">Fecha Fabricación</p>
-        <p class="text-sm font-semibold text-gray-800">${fab.fechaEntrega ? new Date(fab.fechaEntrega + 'T00:00:00').toLocaleDateString('es-ES', {day: '2-digit', month: 'long'}) : '-'}</p>
-    </div>
-</div>
+                        <div>
+                            <p class="text-xs text-gray-500">Semana</p>
+                            <p class="text-lg font-semibold text-gray-800">#${fab.numeroSemana}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Año</p>
+                            <p class="text-lg font-semibold text-gray-800">${fab.anio || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Cantidad</p>
+                            <p class="text-lg font-semibold text-gray-800">${fab.cantidad}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Días Fab.</p>
+                            <p class="text-lg font-semibold text-gray-800">${fab.diasFabricacion || '-'}</p>
+                        </div>
+                    </div>
 
                     ${fab.observaciones ? `
                         <div class="mb-4">
@@ -622,10 +745,23 @@
                                 />
                             </div>
 
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Días de Fabricación
+                                </label>
+                                <input
+                                    type="number"
+                                    id="diasFabricacion"
+                                    value="${fab ? (fab.diasFabricacion || '') : ''}"
+                                    min="1"
+                                    placeholder="Días estimados"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Fecha de Fabricación
+                                    Fecha de Entrega
                                 </label>
                                 <input
                                     type="date"
@@ -634,6 +770,32 @@
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
                             </div>
+
+                            <div>
+    <label class="block text-sm font-medium text-gray-700 mb-2">
+        Fecha de Fabricación
+    </label>
+    <input
+        type="date"
+        id="fechaEntrega"
+        value="${fab ? (fab.fechaEntrega || '') : ''}"
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    />
+</div>
+
+<div>
+    <label class="block text-sm font-medium text-gray-700 mb-2">
+        Prioridad *
+    </label>
+    <select
+        id="prioridad"
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    >
+        <option value="${PRIORIDADES.ALTA}" ${fab?.prioridad === PRIORIDADES.ALTA ? 'selected' : ''}>🔴 Alta</option>
+        <option value="${PRIORIDADES.MEDIA}" ${!fab || fab.prioridad === PRIORIDADES.MEDIA ? 'selected' : ''}>🟡 Media</option>
+        <option value="${PRIORIDADES.BAJA}" ${fab?.prioridad === PRIORIDADES.BAJA ? 'selected' : ''}>🟢 Baja</option>
+    </select>
+</div>
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -705,6 +867,144 @@
                                 </div>
                             `;
                         }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderKanban() {
+            const columnas = [
+                { estado: ESTADOS.PENDIENTE, color: 'yellow', titulo: 'Pendiente' },
+                { estado: ESTADOS.EN_PROCESO, color: 'blue', titulo: 'En Proceso' },
+                { estado: ESTADOS.COMPLETADA, color: 'green', titulo: 'Completada' }
+            ];
+
+            return `
+                <div class="space-y-4">
+                    <!-- Botón crear nueva -->
+                    <div class="flex justify-end">
+                        <button
+                            onclick="abrirModal(null)"
+                            class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2 font-medium"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            Nueva Fabricación
+                        </button>
+                    </div>
+
+                    <!-- Tablero Kanban -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        ${columnas.map(col => {
+                            const fabricacionesColumna = state.fabricaciones.filter(f => f.estado === col.estado);
+                            return `
+                                <div class="bg-gray-100 rounded-lg p-4">
+                                    <!-- Header columna -->
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                                            <span class="w-3 h-3 rounded-full bg-${col.color}-500"></span>
+                                            ${col.titulo}
+                                        </h3>
+                                        <span class="bg-${col.color}-100 text-${col.color}-800 px-2 py-1 rounded-full text-sm font-semibold">
+                                            ${fabricacionesColumna.length}
+                                        </span>
+                                    </div>
+
+                                    <!-- Zona drop -->
+                                    <div
+                                        class="space-y-3 min-h-[400px]"
+                                        ondrop="handleDrop(event, '${col.estado}')"
+                                        ondragover="handleDragOver(event)"
+                                        ondragleave="handleDragLeave(event)"
+                                    >
+                                        ${fabricacionesColumna.length === 0 ? `
+                                            <div class="text-center text-gray-400 py-8">
+                                                <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                                </svg>
+                                                <p class="text-sm">Sin fabricaciones</p>
+                                            </div>
+                                        ` : fabricacionesColumna.map(fab => renderTarjetaKanban(fab)).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTarjetaKanban(fab) {
+            const fecha = fab.fechaEntrega ? new Date(fab.fechaEntrega + 'T00:00:00').toLocaleDateString('es-ES', {day: '2-digit', month: 'short'}) : null;
+            const fechaObj = fab.fechaEntrega ? new Date(fab.fechaEntrega) : null;
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            
+            let alertaFecha = '';
+            if (fechaObj) {
+                const diasRestantes = Math.ceil((fechaObj - hoy) / (1000 * 60 * 60 * 24));
+                if (diasRestantes < 0) {
+                    alertaFecha = 'border-l-4 border-red-500';
+                } else if (diasRestantes <= 3) {
+                    alertaFecha = 'border-l-4 border-orange-500';
+                }
+            }
+
+            return `
+                <div
+                    draggable="true"
+                    ondragstart="handleDragStart(event, ${fab.id})"
+                    ondragend="handleDragEnd(event)"
+                    class="bg-white rounded-lg p-4 shadow hover:shadow-lg transition cursor-move ${alertaFecha}"
+                >
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="font-semibold text-gray-800 text-sm flex-1">${fab.producto}</h4>
+                        <div class="flex gap-1">
+                            <button
+                                onclick="abrirModal(${fab.id})"
+                                class="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                title="Editar"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1 text-xs text-gray-600 mb-3">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <span>Semana ${fab.numeroSemana} - ${fab.anio}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                            </svg>
+                            <span>Cantidad: ${fab.cantidad}</span>
+                        </div>
+                        ${fecha ? `
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>${fecha}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <span class="text-xs text-gray-500">${fab.solicitante}</span>
+                        ${fab.observaciones ? `
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded" title="${fab.observaciones}">
+                                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+                                </svg>
+                            </span>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -1005,35 +1305,38 @@
         };
 
         window.guardarFabricacion = async function() {
-    const numeroSemana = document.getElementById('numeroSemana').value;
-    const anio = document.getElementById('anio').value;
-    const producto = document.getElementById('producto').value;
-    const cantidad = document.getElementById('cantidad').value;
-    const fechaEntrega = document.getElementById('fechaEntrega').value;
-    const observaciones = document.getElementById('observaciones').value;
+            const numeroSemana = document.getElementById('numeroSemana').value;
+            const anio = document.getElementById('anio').value;
+            const producto = document.getElementById('producto').value;
+            const cantidad = document.getElementById('cantidad').value;
+            const diasFabricacion = document.getElementById('diasFabricacion').value;
+            const fechaEntrega = document.getElementById('fechaEntrega').value;
+            const observaciones = document.getElementById('observaciones').value;
 
-    if (!numeroSemana || !anio || !producto || !cantidad) {
-        alert('Por favor completa todos los campos obligatorios');
-        return;
-    }
+            if (!numeroSemana || !anio || !producto || !cantidad) {
+                alert('Por favor completa todos los campos obligatorios');
+                return;
+            }
 
-    const datos = {
-        numeroSemana,
-        anio,
-        producto,
-        cantidad,
-        fechaEntrega,
-        observaciones
-    };
+            const datos = {
+                numeroSemana,
+                anio,
+                producto,
+                cantidad,
+                diasFabricacion,
+                fechaEntrega,
+                observaciones
+            };
 
-    if (state.fabricacionSeleccionada) {
-        await actualizarFabricacion(state.fabricacionSeleccionada, datos);
-    } else {
-        await crearFabricacion(datos);
-    }
+            if (state.fabricacionSeleccionada) {
+                await actualizarFabricacion(state.fabricacionSeleccionada, datos);
+            } else {
+                await crearFabricacion(datos);
+            }
 
-    cerrarModal();
-};
+            cerrarModal();
+        };
+
         window.cambiarEstado = async function(id, nuevoEstado) {
             await actualizarFabricacion(id, { estado: nuevoEstado });
         };
@@ -1058,6 +1361,80 @@
             state.semanaSeleccionada = null;
             render();
         };
+
+        // Funciones Drag & Drop para Kanban
+        window.handleDragStart = function(event, id) {
+            state.draggedId = id;
+            event.target.style.opacity = '0.5';
+        };
+
+        window.handleDragEnd = function(event) {
+            event.target.style.opacity = '1';
+        };
+
+        window.handleDragOver = function(event) {
+            event.preventDefault();
+            event.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        };
+
+        window.handleDragLeave = function(event) {
+            event.currentTarget.style.backgroundColor = '';
+        };
+
+        window.handleDrop = async function(event, nuevoEstado) {
+    event.preventDefault();
+    event.currentTarget.style.backgroundColor = '';
+    
+    if (state.draggedId) {
+        await actualizarFabricacion(state.draggedId, { estado: nuevoEstado });
+        state.draggedId = null;
+    }
+};
+
+window.exportarAExcel = function() {
+    // Importar SheetJS
+    const XLSX = window.XLSX || SheetJS;
+    
+    // Preparar datos para Excel
+    const datos = state.fabricaciones.map(fab => ({
+        'Producto': fab.producto,
+        'Semana': fab.numeroSemana,
+        'Año': fab.anio,
+        'Cantidad': fab.cantidad,
+        'Fecha Fabricación': fab.fechaEntrega || '',
+        'Prioridad': fab.prioridad,
+        'Estado': fab.estado,
+        'Solicitante': fab.solicitante,
+        'Observaciones': fab.observaciones || ''
+    }));
+
+    // Crear libro de Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(datos);
+    
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+        { wch: 25 }, // Producto
+        { wch: 8 },  // Semana
+        { wch: 6 },  // Año
+        { wch: 10 }, // Cantidad
+        { wch: 15 }, // Fecha
+        { wch: 10 }, // Prioridad
+        { wch: 12 }, // Estado
+        { wch: 15 }, // Solicitante
+        { wch: 40 }  // Observaciones
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Fabricaciones');
+    
+    // Descargar archivo
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `fabricaciones_${fecha}.xlsx`);
+};
+
+window.duplicarFabricacion = async function(id) {
+    await duplicarFabricacion(id);
+};
 
         // Inicializar
         cargarFabricaciones();
