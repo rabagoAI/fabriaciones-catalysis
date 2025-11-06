@@ -513,9 +513,9 @@
                             <p class="text-lg font-semibold text-gray-800">${fab.cantidad}</p>
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Días Fab.</p>
-                            <p class="text-lg font-semibold text-gray-800">${fab.diasFabricacion || '-'}</p>
-                        </div>
+        <p class="text-xs text-gray-500">Fecha Fabricación</p>
+        <p class="text-sm font-semibold text-gray-800">${fab.fechaEntrega ? new Date(fab.fechaEntrega + 'T00:00:00').toLocaleDateString('es-ES', {day: '2-digit', month: 'long'}) : '-'}</p>
+    </div>
                     </div>
 
                     ${fab.observaciones ? `
