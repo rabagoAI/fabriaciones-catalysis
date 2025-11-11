@@ -30,6 +30,12 @@
             COMPLETADA: 'Completada'
         };
 
+        const PRIORIDADES = {
+    ALTA: 'Alta',
+    MEDIA: 'Media',
+    BAJA: 'Baja'
+};
+
         // Estado de la aplicación
         let state = {
             fabricaciones: [],
@@ -220,16 +226,47 @@
         }
 
         // Filtrar fabricaciones
-        function getFabricacionesFiltradas() {
-            return state.fabricaciones
-                .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
-                .filter(fab => 
-                    state.busqueda === '' || 
-                    fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
-                    fab.numeroSemana.toString().includes(state.busqueda) ||
-                    (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
-                );
-        }
+function getFabricacionesFiltradas() {
+    return state.fabricaciones
+        .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
+        .filter(fab => state.filtroPrioridad === 'todas' || fab.prioridad === state.filtroPrioridad)
+        .filter(fab => {
+            if (!state.fechaDesde && !state.fechaHasta) return true;
+            if (!fab.fechaEntrega) return false;
+            const fechaFab = new Date(fab.fechaEntrega);
+            if (state.fechaDesde && new Date(state.fechaDesde) > fechaFab) return false;
+            if (state.fechaHasta && new Date(state.fechaHasta) < fechaFab) return false;
+            return true;
+        })
+        .filter(fab => 
+            state.busqueda === '' || 
+            fab.producto.toLowerCase().includes(state.busqueda.toLowerCase()) ||
+            fab.numeroSemana.toString().includes(state.busqueda) ||
+            (fab.observaciones && fab.observaciones.toLowerCase().includes(state.busqueda.toLowerCase()))
+        )
+        .sort((a, b) => {
+            // Primero por año
+            if (a.anio !== b.anio) {
+                return a.anio - b.anio;
+            }
+            // Luego por semana
+            if (a.numeroSemana !== b.numeroSemana) {
+                return a.numeroSemana - b.numeroSemana;
+            }
+            // Dentro de la misma semana, por prioridad
+            const prioridadOrden = { [PRIORIDADES.ALTA]: 1, [PRIORIDADES.MEDIA]: 2, [PRIORIDADES.BAJA]: 3 };
+            if (prioridadOrden[a.prioridad] !== prioridadOrden[b.prioridad]) {
+                return prioridadOrden[a.prioridad] - prioridadOrden[b.prioridad];
+            }
+            // Finalmente por fecha de fabricación (las más tempranas primero)
+            if (a.fechaEntrega && b.fechaEntrega) {
+                return new Date(a.fechaEntrega) - new Date(b.fechaEntrega);
+            }
+            if (a.fechaEntrega && !b.fechaEntrega) return -1;
+            if (!a.fechaEntrega && b.fechaEntrega) return 1;
+            return 0;
+        });
+}
 
         // Calcular estadísticas
         function getEstadisticas() {
