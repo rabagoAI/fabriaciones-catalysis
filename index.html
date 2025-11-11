@@ -6,6 +6,8 @@
     <title>Sistema de Fabricaciones</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
 </head>
 <body class="bg-gradient-to-br from-blue-100 to-indigo-200 min-h-screen">
     <div id="app"></div>
@@ -384,15 +386,26 @@
                             <option value="${ESTADOS.EN_PROCESO}" ${state.filtroEstado === ESTADOS.EN_PROCESO ? 'selected' : ''}>${ESTADOS.EN_PROCESO}</option>
                             <option value="${ESTADOS.COMPLETADA}" ${state.filtroEstado === ESTADOS.COMPLETADA ? 'selected' : ''}>${ESTADOS.COMPLETADA}</option>
                         </select>
-                        <button
-                            onclick="abrirModal(null)"
-                            class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                            </svg>
-                            Nueva Fabricación
-                        </button>
+                        <div class="flex gap-2 mt-4">
+    <button
+        onclick="abrirModal(null)"
+        class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"
+    >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        Nueva Fabricación
+    </button>
+    <button
+        onclick="window.exportarAExcel()"
+        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-medium"
+    >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        Exportar
+    </button>
+</div>
                     </div>
                 </div>
 
@@ -1237,6 +1250,51 @@
                 state.draggedId = null;
             }
         };
+
+        // Exportar a Excel
+window.exportarAExcel = function() {
+    // Importar SheetJS
+    const XLSX = window.XLSX || SheetJS;
+    
+    // Preparar datos para Excel
+    const datos = state.fabricaciones.map(fab => ({
+        'Producto': fab.producto,
+        'Semana': fab.numeroSemana,
+        'Año': fab.anio,
+        'Cantidad': fab.cantidad,
+        'Fecha Fabricación': fab.fechaEntrega || '',
+        'Prioridad': fab.prioridad,
+        'Estado': fab.estado,
+        'Solicitante': fab.solicitante,
+        'Observaciones': fab.observaciones || ''
+    }));
+
+    // Crear libro de Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(datos);
+    
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+        { wch: 25 }, // Producto
+        { wch: 8 },  // Semana
+        { wch: 6 },  // Año
+        { wch: 10 }, // Cantidad
+        { wch: 15 }, // Fecha
+        { wch: 10 }, // Prioridad
+        { wch: 12 }, // Estado
+        { wch: 15 }, // Solicitante
+        { wch: 40 }  // Observaciones
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Fabricaciones');
+    
+    // Descargar archivo
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `fabricaciones_${fecha}.xlsx`);
+};
+
+// Inicializar
+cargarFabricaciones();
 
         // Inicializar
         cargarFabricaciones();
