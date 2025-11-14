@@ -39,7 +39,7 @@
         // Estado de la aplicación
         let state = {
     fabricaciones: [],
-    filtroEstado: 'Pendiente',
+    filtroEstado: 'todos',
             busqueda: '',
             vistaActual: 'lista',
             fabricacionSeleccionada: null,
@@ -228,7 +228,12 @@
         // Filtrar fabricaciones
 function getFabricacionesFiltradas() {
     return state.fabricaciones
-        .filter(fab => state.filtroEstado === 'todos' || fab.estado === state.filtroEstado)
+       .filter(fab => {
+    if (state.filtroEstado === 'todos') {
+        return fab.estado !== ESTADOS.COMPLETADA;
+    }
+    return fab.estado === state.filtroEstado;
+})
         .filter(fab => state.filtroPrioridad === 'todas' || fab.prioridad === state.filtroPrioridad)
         .filter(fab => {
             if (!state.fechaDesde && !state.fechaHasta) return true;
@@ -684,7 +689,7 @@ function getFabricacionesFiltradas() {
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Fecha de Entrega
+                                    Fecha de Fabricacion
                                 </label>
                                 <input
                                     type="date"
